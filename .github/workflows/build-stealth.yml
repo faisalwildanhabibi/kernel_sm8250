@@ -1,4 +1,4 @@
-name: Build Stealth Stock Kernel Alioth
+name: Build Stealth Pure-Boot Kernel Alioth
 
 on:
   workflow_dispatch:
@@ -6,15 +6,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
-      - name: Checkout Source
+      - name: Checkout Upstream Kernel Tree (v2.0-rel)
         uses: actions/checkout@v4
         with:
           repository: re-noroi/kernel_sm8250
           ref: v2.0-rel
           fetch-depth: 1
 
-      - name: Setup Build Dependencies
+      - name: Install Compiler Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex \
@@ -28,19 +30,25 @@ jobs:
           curl -sSL https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r450784d.tar.gz | tar -xz -C clang
           echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
 
-      - name: Compile Kernel Image with Stock Spoof Identity
+      - name: Patch Sublevel & Strip Git SCM
+        run: |
+          # 1. Samakan sublevel kernel ke 157 persis firmware stock HyperOS
+          sed -i 's/^SUBLEVEL =.*/SUBLEVEL = 157/' Makefile
+
+          # 2. Hapus auto-append git commit hash bawaan kernel script
+          echo "" > .scmversion
+
+      - name: Configure and Compile Kernel Image
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
 
-          # Meniru identitas builder Xiaomi sesuai tangkapan layar
+          # Identitas builder resmi Xiaomi HyperOS (sesuai spesifikasi perangkat)
           export KBUILD_BUILD_USER="builder"
           export KBUILD_BUILD_HOST="pangu-build-component-vendor-432215-vj7fq-j7z14-wt7cv"
           export KBUILD_BUILD_TIMESTAMP="Tue Jan 13 12:57:01 UTC 2026"
 
-          echo "" > .scmversion
-
-          # Konfigurasi defconfig Alioth
+          # 1. Buat konfigurasi awal dari defconfig Alioth
           make O=out vendor/alioth_defconfig \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -48,9 +56,18 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1
 
-          scripts/config --file out/.config --set-str LOCALVERSION "-perf"
+          # 2. Injeksi Banner Identitas Persis Stock (4.19.157-perf-g92c089fc2d37)
+          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
+          scripts/config --file out/.config --set-str LOCALVERSION "-perf-g92c089fc2d37"
 
-          # Kompilasi hanya Image
+          # 3. Pencegahan Masalah Driver Vendor (Wi-Fi, Bluetooth, Audio)
+          scripts/config --file out/.config --enable CONFIG_MODULE_FORCE_LOAD
+
+          # 4. Anti-Deteksi: Sembunyikan simbol KSU & pertahankan SELinux
+          scripts/config --file out/.config --disable CONFIG_KSU_DEBUG
+          scripts/config --file out/.config --enable CONFIG_SECURITY_SELINUX
+
+          # 5. Kompilasi biner Image murni
           make -j$(nproc --all) O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -63,22 +80,26 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
 
+          # Kunci target instalasi HANYA ke partisi boot
           sed -i 's/block=auto;/block=\/dev\/block\/bootdevice\/by-name\/boot;/g' AK3/anykernel.sh
           sed -i 's/is_slot_device=auto;/is_slot_device=auto;/g' AK3/anykernel.sh
           
+          # Hapus seluruh instruksi modifikasi partisi dtbo dan vendor_boot
           sed -i '/flash_dtbo/d' AK3/anykernel.sh
           sed -i '/flash_vendor_boot/d' AK3/anykernel.sh
           sed -i '/vendor_boot/d' AK3/anykernel.sh
           sed -i 's/device.name4=/device.name4=aliothin/g' AK3/anykernel.sh
           sed -i 's/device.name1=/device.name1=alioth/g' AK3/anykernel.sh
 
+          # Salin biner Image hasil build
           cp out/arch/arm64/boot/Image AK3/Image
 
+          # Kompresi arsip ZIP
           cd AK3
           zip -r9 ../StockStealth-Alioth.zip * -x .git* README.md *placeholder
           cd ..
 
-      - name: Upload Artifact
+      - name: Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: StockStealth-Kernel-Alioth
