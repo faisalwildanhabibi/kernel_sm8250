@@ -91,8 +91,11 @@ jobs:
           export KBUILD_BUILD_HOST="pangu-build-component-vendor-432215-vj7fq-j7z14-wt7cv"
           export KBUILD_BUILD_TIMESTAMP="Tue Jan 13 12:57:01 UTC 2026"
 
+          # Tambahkan HOSTCC=gcc dan HOSTCXX=g++
           make O=out vendor/alioth_defconfig \
             CC=clang \
+            HOSTCC=gcc \
+            HOSTCXX=g++ \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1
@@ -103,8 +106,11 @@ jobs:
           scripts/config --file out/.config --disable CONFIG_KSU_DEBUG
           scripts/config --file out/.config --enable CONFIG_SECURITY_SELINUX
 
+          # Tambahkan juga di proses kompilasi utama
           make -j$(nproc --all) O=out \
             CC=clang \
+            HOSTCC=gcc \
+            HOSTCXX=g++ \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1 \
