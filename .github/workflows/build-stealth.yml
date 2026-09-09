@@ -39,9 +39,9 @@ jobs:
           # 3. Bypass script checksyscalls
           echo "exit 0" > scripts/checksyscalls.sh
 
-      - name: Apply Safe Anti-Detection Patches
+      - name: Apply Comprehensive Ultimate Anti-Detection Patches
         run: |
-          # Samarkan Status Bootloader di /proc/cmdline
+          # --- 1. Samarkan Status Bootloader di /proc/cmdline ---
           python3 -c '
           path = "fs/proc/cmdline.c"
           with open(path, "r") as f:
@@ -63,7 +63,7 @@ jobs:
               f.write(content)
           '
 
-          # Netralkan Kernel Taint Flag
+          # --- 2. Netralkan Kernel Taint Flag (Selalu 0) ---
           python3 -c '
           import re
           path = "kernel/panic.c"
@@ -74,7 +74,25 @@ jobs:
               f.write(content)
           '
 
-          # Proteksi Simbol & Keamanan
+          # --- 3. TracerPid Spoofing (Native Anti-Debugging / Anti-Hooking Ptrace) ---
+          python3 -c '
+          path = "fs/proc/array.c"
+          with open(path, "r") as f:
+              content = f.read()
+
+          target_str = "seq_put_decimal_ull(m, \"TracerPid:\\t\", tpid);"
+          spoof_code = "seq_put_decimal_ull(m, \"TracerPid:\\t\", (current_uid().val >= 10000) ? 0 : tpid);"
+
+          if target_str in content:
+              content = content.replace(target_str, spoof_code)
+              with open(path, "w") as f:
+                  f.write(content)
+              print("TracerPid spoofing patch applied successfully!")
+          else:
+              print("Warning: Target TracerPid string not found in fs/proc/array.c")
+          '
+
+          # --- 4. Proteksi Simbol & Keamanan pada Defconfig ---
           echo "CONFIG_SECURITY_SELINUX=y" >> arch/arm64/configs/vendor/alioth_defconfig
           echo "CONFIG_KSU_DEBUG=n" >> arch/arm64/configs/vendor/alioth_defconfig
 
