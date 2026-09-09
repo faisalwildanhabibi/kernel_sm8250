@@ -40,6 +40,7 @@ jobs:
           # 3. Hapus flag LLVM modern yang tidak didukung oleh Clang r416183b
           grep -rl "regalloc-enable-advisor" . | xargs -r sed -i 's/-mllvm -regalloc-enable-advisor=release//g'
           grep -rl "regalloc-enable-advisor" . | xargs -r sed -i 's/-regalloc-enable-advisor=release//g'
+          grep -rl "fsplit-machine-functions" . | xargs -r sed -i 's/-fsplit-machine-functions//g'
 
           # 4. Bypass script checksyscalls untuk menghindari error Broken Pipe
           echo "exit 0" > scripts/checksyscalls.sh
