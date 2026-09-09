@@ -29,13 +29,17 @@ jobs:
           git clone --depth=1 https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git clang
           echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
 
-      - name: Patch Sublevel & Strip Git SCM
+      - name: Patch Sublevel, Strip Git SCM & Fix Clang Flags
         run: |
           # 1. Samakan sublevel kernel ke 157 persis firmware stock HyperOS
           sed -i 's/^SUBLEVEL =.*/SUBLEVEL = 157/' Makefile
 
           # 2. Hapus auto-append git commit hash bawaan kernel script
           echo "" > .scmversion
+
+          # 3. Hapus flag LLVM modern yang tidak didukung oleh Clang r416183b
+          grep -rl "regalloc-enable-advisor" . | xargs -r sed -i 's/-mllvm -regalloc-enable-advisor=release//g'
+          grep -rl "regalloc-enable-advisor" . | xargs -r sed -i 's/-regalloc-enable-advisor=release//g'
 
       - name: Apply Safe Anti-Detection Patches
         run: |
