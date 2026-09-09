@@ -22,7 +22,7 @@ jobs:
           sudo apt-get install -y bc bison build-essential ccache curl flex \
             libxml2 libxml2-utils lzop rsync schedtool squashfs-tools \
             xsltproc zip zlib1g-dev libssl-dev libelf-dev \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3
 
       - name: Setup AOSP Clang Toolchain (r416183b)
         run: |
@@ -37,6 +37,45 @@ jobs:
           # 2. Hapus auto-append git commit hash bawaan kernel script
           echo "" > .scmversion
 
+      - name: Apply Safe Anti-Detection Patches
+        run: |
+          # 1. Samarkan Status Bootloader di /proc/cmdline tanpa stack allocation
+          python3 -c '
+          path = "fs/proc/cmdline.c"
+          with open(path, "r") as f:
+              content = f.read()
+
+          patch_code = """
+          \tchar *p = strstr(saved_command_line, "androidboot.verifiedbootstate=orange");
+          \tif (p) memcpy(p + 30, "green ", 6);
+          \tp = strstr(saved_command_line, "androidboot.flash.locked=0");
+          \tif (p) *(p + 25) = '\''1'\'';
+          """
+
+          if "seq_puts(m, saved_command_line);" in content:
+              content = content.replace("seq_puts(m, saved_command_line);", patch_code + "\n\tseq_puts(m, saved_command_line);")
+          elif "seq_printf(m, \"%s\\n\", saved_command_line);" in content:
+              content = content.replace("seq_printf(m, \"%s\\n\", saved_command_line);", patch_code + "\n\tseq_printf(m, \"%s\\n\", saved_command_line);")
+
+          with open(path, "w") as f:
+              f.write(content)
+          '
+
+          # 2. Netralkan Kernel Taint Flag (Paksa /proc/sys/kernel/tainted selalu 0)
+          python3 -c '
+          import re
+          path = "kernel/panic.c"
+          with open(path, "r") as f:
+              content = f.read()
+          content = re.sub(r"void add_taint\(unsigned flag, enum lockdep_ok [a-zA-Z0-9_]+\)\s*\{", "void add_taint(unsigned flag, enum lockdep_ok lockdep_ok) {\n\treturn; /* neutralized */", content)
+          with open(path, "w") as f:
+              f.write(content)
+          '
+
+          # 3. Proteksi Simbol & Keamanan pada Defconfig Alioth
+          echo "CONFIG_SECURITY_SELINUX=y" >> arch/arm64/configs/vendor/alioth_defconfig
+          echo "CONFIG_KSU_DEBUG=n" >> arch/arm64/configs/vendor/alioth_defconfig
+
       - name: Configure and Compile Kernel Image
         run: |
           export ARCH=arm64
@@ -47,48 +86,43 @@ jobs:
           export KBUILD_BUILD_HOST="pangu-build-component-vendor-432215-vj7fq-j7z14-wt7cv"
           export KBUILD_BUILD_TIMESTAMP="Tue Jan 13 12:57:01 UTC 2026"
 
-          # 1. Buat konfigurasi awal dari defconfig Alioth
+          # Buat konfigurasi awal
           make O=out vendor/alioth_defconfig \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            LLVM=1 \
-            LLVM_IAS=1
+            LLVM=1
 
-          # 2. Injeksi Banner Identitas Persis Stock (4.19.157-perf-g92c089fc2d37)
+          # Injeksi banner identitas persis stock
           scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
           scripts/config --file out/.config --set-str LOCALVERSION "-perf-g92c089fc2d37"
 
-          # 3. Pencegahan Masalah Driver Vendor (Wi-Fi, Bluetooth, Audio)
+          # Pencegahan inkompatibilitas modul driver vendor (Wi-Fi, Bluetooth, Audio)
           scripts/config --file out/.config --enable CONFIG_MODULE_FORCE_LOAD
 
-          # 4. Anti-Deteksi: Sembunyikan simbol KSU & pertahankan SELinux
+          # Anti-Deteksi: Sembunyikan debug KSU dan pertahankan SELinux
           scripts/config --file out/.config --disable CONFIG_KSU_DEBUG
           scripts/config --file out/.config --enable CONFIG_SECURITY_SELINUX
 
-          # 5. Kompilasi biner Image murni
+          # Kompilasi biner Image murni
           make -j$(nproc --all) O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1 \
-            LLVM_IAS=1 \
             Image
 
       - name: Package Pure AnyKernel3 (Boot Partition Only)
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
 
-          # Kunci target instalasi HANYA ke partisi boot
-          sed -i 's/block=auto;/block=\/dev\/block\/bootdevice\/by-name\/boot;/g' AK3/anykernel.sh
-          sed -i 's/is_slot_device=auto;/is_slot_device=auto;/g' AK3/anykernel.sh
-          
-          # Hapus seluruh instruksi modifikasi partisi dtbo dan vendor_boot
-          sed -i '/flash_dtbo/d' AK3/anykernel.sh
-          sed -i '/flash_vendor_boot/d' AK3/anykernel.sh
-          sed -i '/vendor_boot/d' AK3/anykernel.sh
-          sed -i 's/device.name4=/device.name4=aliothin/g' AK3/anykernel.sh
-          sed -i 's/device.name1=/device.name1=alioth/g' AK3/anykernel.sh
+          # Konfigurasi nama banner & target perangkat yang benar
+          sed -i 's/kernel.string=.*/kernel.string=Stock HyperOS Kernel (Alioth)/g' AK3/anykernel.sh
+          sed -i 's/device.name1=.*/device.name1=alioth/g' AK3/anykernel.sh
+          sed -i 's/device.name2=.*/device.name2=aliothin/g' AK3/anykernel.sh
+          sed -i 's/device.name3=.*/device.name3=/g' AK3/anykernel.sh
+          sed -i 's/device.name4=.*/device.name4=/g' AK3/anykernel.sh
+          sed -i 's/device.name5=.*/device.name5=/g' AK3/anykernel.sh
 
           # Salin biner Image hasil build
           cp out/arch/arm64/boot/Image AK3/Image
