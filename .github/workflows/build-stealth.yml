@@ -1,0 +1,87 @@
+name: Build Stealth Stock Kernel Alioth
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          ref: v2.0-rel
+          fetch-depth: 1
+
+      - name: Setup Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
+            gcc-multilib git gnupg gperf libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+            squashfs-tools xsltproc zip zlib1g-dev libssl-dev libelf-dev
+
+      - name: Setup Proton Clang
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
+          echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
+
+      - name: Compile Kernel Image with Stock Spoof Identity
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CC=clang
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+          # Meniru identitas builder Xiaomi sesuai tangkapan layar
+          export KBUILD_BUILD_USER="builder"
+          export KBUILD_BUILD_HOST="pangu-build-component-vendor-432215-vj7fq-j7z14-wt7cv"
+          export KBUILD_BUILD_TIMESTAMP="Tue Jan 13 12:57:01 UTC 2026"
+
+          # Bersihkan postfix ekstra git hash pada localversion jika ada
+          echo "" > .scmversion
+
+          # Konfigurasi defconfig Alioth
+          make O=out vendor/alioth_defconfig
+
+          # Set localversion agar match dengan akhiran -perf
+          scripts/config --file out/.config --set-str LOCALVERSION "-perf"
+
+          make -j$(nproc --all) O=out \
+            CC="clang" \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            Image
+
+      - name: Package Pure AnyKernel3 (Boot Partition Only)
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
+
+          # Konfigurasi mutlak: Hanya patch partisi boot, matikan injeksi lain
+          sed -i 's/block=auto;/block=\/dev\/block\/bootdevice\/by-name\/boot;/g' AK3/anykernel.sh
+          sed -i 's/is_slot_device=auto;/is_slot_device=auto;/g' AK3/anykernel.sh
+          
+          # Hapus logic flash dtbo atau vendor_boot dari anykernel.sh
+          sed -i '/flash_dtbo/d' AK3/anykernel.sh
+          sed -i '/flash_vendor_boot/d' AK3/anykernel.sh
+          sed -i '/vendor_boot/d' AK3/anykernel.sh
+          sed -i 's/device.name4=/device.name4=aliothin/g' AK3/anykernel.sh
+          sed -i 's/device.name1=/device.name1=alioth/g' AK3/anykernel.sh
+
+          # Salin biner Image saja ke folder AnyKernel3
+          cp out/arch/arm64/boot/Image AK3/Image
+
+          # Pack zip
+          cd AK3
+          zip -r9 ../StockStealth-Alioth.zip * -x .git* README.md *placeholder
+          cd ..
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StockStealth-Kernel-Alioth
+          path: StockStealth-Alioth.zip
