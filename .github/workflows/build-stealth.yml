@@ -10,6 +10,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
+          repository: re-noroi/kernel_sm8250
           ref: v2.0-rel
           fetch-depth: 1
 
