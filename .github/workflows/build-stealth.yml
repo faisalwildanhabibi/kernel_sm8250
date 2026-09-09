@@ -24,9 +24,9 @@ jobs:
             xsltproc zip zlib1g-dev libssl-dev libelf-dev \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3
 
-      - name: Setup AOSP Clang Toolchain (r416183b)
+      - name: Setup Proton Clang Toolchain
         run: |
-          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git clang
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
           echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
 
       - name: Patch Sublevel, Strip Git SCM & Fix Clang Flags
