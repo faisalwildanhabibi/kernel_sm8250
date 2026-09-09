@@ -137,6 +137,7 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
           
+          # Konfigurasi nama banner & target perangkat yang benar
           sed -i 's/kernel.string=.*/kernel.string=Stock HyperOS Kernel (Alioth)/g' AK3/anykernel.sh
           sed -i 's/device.name1=.*/device.name1=alioth/g' AK3/anykernel.sh
           sed -i 's/device.name2=.*/device.name2=aliothin/g' AK3/anykernel.sh
@@ -144,8 +145,13 @@ jobs:
           sed -i 's/device.name4=.*/device.name4=/g' AK3/anykernel.sh
           sed -i 's/device.name5=.*/device.name5=/g' AK3/anykernel.sh
 
+          # Paksa jalur blok partisi dan aktifkan dukungan slot A/B untuk POCO F3
+          sed -i '/properties() {/a \  block=\/dev\/block\/bootdevice\/by-name\/boot;\n  is_slot_device=1;' AK3/anykernel.sh
+
+          # Salin biner Image hasil build
           cp out/arch/arm64/boot/Image AK3/Image
 
+          # Kompresi arsip ZIP
           cd AK3
           zip -r9 ../StockStealth-Alioth.zip * -x .git* README.md *placeholder
           cd ..
