@@ -9,11 +9,9 @@ jobs:
     env:
       ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
-      - name: Checkout Upstream Kernel Tree
+      - name: Checkout Kernel Tree (repo ini)
         uses: actions/checkout@v4
         with:
-          repository: re-noroi/kernel_sm8250
-          ref: v2.0-rel
           fetch-depth: 1
 
       - name: Install Compiler Dependencies (Native Clang)
@@ -135,25 +133,12 @@ jobs:
 
       - name: Package Pure AnyKernel3 (Boot Partition Only)
         run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AK3
-          
-          # Konfigurasi nama banner & target perangkat yang benar
-          sed -i 's/kernel.string=.*/kernel.string=Stock HyperOS Kernel (Alioth)/g' AK3/anykernel.sh
-          sed -i 's/device.name1=.*/device.name1=alioth/g' AK3/anykernel.sh
-          sed -i 's/device.name2=.*/device.name2=aliothin/g' AK3/anykernel.sh
-          sed -i 's/device.name3=.*/device.name3=/g' AK3/anykernel.sh
-          sed -i 's/device.name4=.*/device.name4=/g' AK3/anykernel.sh
-          sed -i 's/device.name5=.*/device.name5=/g' AK3/anykernel.sh
+          # Salin biner Image hasil build ke folder AnyKernel3 statis yang sudah di-commit
+          cp out/arch/arm64/boot/Image AnyKernel3/Image
 
-          # Paksa jalur blok partisi dan aktifkan dukungan slot A/B untuk POCO F3
-          sed -i '/properties() {/a \  block=\/dev\/block\/bootdevice\/by-name\/boot;\n  is_slot_device=1;' AK3/anykernel.sh
-
-          # Salin biner Image hasil build
-          cp out/arch/arm64/boot/Image AK3/Image
-
-          # Kompresi arsip ZIP
-          cd AK3
-          zip -r9 ../StockStealth-Alioth.zip * -x .git* README.md *placeholder
+          # Kompresi arsip ZIP dari folder AnyKernel3 (deteksi slot A/B otomatis via ak3-core.sh)
+          cd AnyKernel3
+          zip -r9 ../StockStealth-Alioth.zip . -x '*.git*' README.md '*placeholder'
           cd ..
 
       - name: Upload Kernel Artifact
