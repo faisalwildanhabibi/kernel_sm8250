@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Kernel Tree (repo ini)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Install Compiler Dependencies (Native Clang)
         run: |
@@ -93,6 +93,11 @@ jobs:
           # --- 4. Proteksi Simbol & Keamanan pada Defconfig ---
           echo "CONFIG_SECURITY_SELINUX=y" >> arch/arm64/configs/vendor/alioth_defconfig
           echo "CONFIG_KSU_DEBUG=n" >> arch/arm64/configs/vendor/alioth_defconfig
+
+          # --- 5. Identitas kernel stock HyperOS (anti-deteksi) ---
+          echo "CONFIG_ALIOTH_IDENTITY_SPOOF=y" >> arch/arm64/configs/vendor/alioth_defconfig
+          echo "CONFIG_UNAME_OVERRIDE=y" >> arch/arm64/configs/vendor/alioth_defconfig
+          echo 'CONFIG_UNAME_OVERRIDE_STRING="4.19.157-perf-g92c089fc2d37"' >> arch/arm64/configs/vendor/alioth_defconfig
 
       - name: Configure and Compile Kernel Image
         run: |

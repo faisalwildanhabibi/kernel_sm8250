@@ -1215,6 +1215,16 @@ static void override_custom_release(char __user *release, size_t len)
 #ifdef CONFIG_UNAME_OVERRIDE
 	char *buf;
 
+	/* alioth: an empty target means "override every process", which is the
+	 * stock-identity spoof. Handle it directly so the hot path does not pay
+	 * for a cmdline allocation on every uname() call.
+	 */
+	if (!*CONFIG_UNAME_OVERRIDE_TARGET) {
+		copy_to_user(release, CONFIG_UNAME_OVERRIDE_STRING,
+			     strlen(CONFIG_UNAME_OVERRIDE_STRING) + 1);
+		return;
+	}
+
 	buf = kstrdup_quotable_cmdline(current, GFP_KERNEL);
 	if (buf == NULL)
 		return;

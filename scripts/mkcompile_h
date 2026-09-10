@@ -24,17 +24,21 @@ else
 fi
 
 if [ -z "$KBUILD_BUILD_TIMESTAMP" ]; then
-	TIMESTAMP=`date`
+        # alioth: pin to the stock HyperOS build timestamp so the reported
+        # identity is stable and reproducible across rebuilds.
+        TIMESTAMP="Tue Jan 13 12:57:01 UTC 2026"
 else
 	TIMESTAMP=$KBUILD_BUILD_TIMESTAMP
 fi
 if test -z "$KBUILD_BUILD_USER"; then
-	LINUX_COMPILE_BY=$(whoami | sed 's/\\/\\\\/')
+        # alioth: default to the stock HyperOS builder identity instead of
+        # the local build user, so the string never leaks a custom build.
+        LINUX_COMPILE_BY="builder"
 else
-	LINUX_COMPILE_BY=$KBUILD_BUILD_USER
+        LINUX_COMPILE_BY=$KBUILD_BUILD_USER
 fi
 if test -z "$KBUILD_BUILD_HOST"; then
-	LINUX_COMPILE_HOST=`uname -n`
+        LINUX_COMPILE_HOST="pangu-build-component-vendor-432215-vj7fq-j7z14-wt7cv"
 else
 	LINUX_COMPILE_HOST=$KBUILD_BUILD_HOST
 fi

@@ -149,6 +149,16 @@ config UNAME_OVERRIDE_STRING
 
 endif
 
+config ALIOTH_IDENTITY_SPOOF
+	bool "alioth: present a stock HyperOS kernel identity"
+	help
+	  Report the stock HyperOS kernel identity (release, version, builder)
+	  to userspace and mask the unlocked-bootloader flags normally exposed
+	  through /proc/cmdline. Intended for the SM8250 alioth (POCO F3 /
+	  Redmi K40) kernel_sm8250 tree.
+
+	  If unsure, say n.
+
 config BUILD_SALT
        string "Build ID Salt"
        default ""
